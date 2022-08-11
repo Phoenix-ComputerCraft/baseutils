@@ -1,0 +1,1 @@
+for _, v in ipairs{...} do if v:sub(1, 1) ~= "-" then assert(io.open(v, "a")):close() end end
