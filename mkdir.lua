@@ -2,7 +2,7 @@ local util = require "system.util"
 local filesystem = require "system.filesystem"
 local args = assert(util.argparse({p = false, m = true}, ...))
 local mode = args.m
-local oct = tonumber(mode, 8)
+local oct = mode and tonumber(mode, 8)
 local function setmode(file)
     local stat = filesystem.stat(file)
     if oct then
