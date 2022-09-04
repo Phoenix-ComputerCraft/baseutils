@@ -1,4 +1,5 @@
 local args = {...}
+if #args < 1 then error("printf: missing format") end
 local format = table.remove(args, 1)
 local opts = {}
 for f in format:gmatch "%%[%-%+ #0]?%d*%.?%d*[jzt]?[diuoxXfFeEgGaAcsq]" do

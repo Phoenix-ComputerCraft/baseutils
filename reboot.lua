@@ -1,1 +1,1 @@
-coroutine.yield("syscall", "devcall", "/", "reboot")
+return coroutine.yield("syscall", "devcall", "/", "reboot")

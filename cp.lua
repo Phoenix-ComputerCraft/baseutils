@@ -6,6 +6,7 @@ if #args < 2 then error("cp: missing operand") end
 
 local function copy(from, to)
     local fromstat = filesystem.stat(from)
+    if not fromstat then error("cp: " .. from .. ": No such file or directory") end
     local tostat = filesystem.stat(to)
     if fromstat.type == "directory" then
         local create = false
@@ -33,7 +34,7 @@ local function copy(from, to)
             elseif args.n then return false end
         end
         local fromfile, err = filesystem.open(from, "rb")
-        if not fromfile then error(err, 2) end
+        if not fromfile then error("cp: " .. from .. ": " .. err, 2) end
         local tofile, err = filesystem.open(to, "wb")
         if not tofile then
             if args.f and tostat then
