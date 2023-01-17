@@ -11,7 +11,7 @@ end
 local mode = table.remove(args, 1)
 local oct = tonumber(mode, 8)
 local function setmode(file)
-    local stat = filesystem.stat(file)
+    local stat = filesystem.stat(file, true)
     if oct then
         filesystem.chmod(file, stat.owner, bit32.band(bit32.rshift(oct, 6), 7))
         filesystem.chmod(file, nil, bit32.band(oct, 7))

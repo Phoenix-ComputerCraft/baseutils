@@ -27,7 +27,7 @@ local function printInfo(name, stat, w)
         local all = (aperm.read and 'r' or '-') .. (aperm.write and 'w' or '-') .. (aperm.execute and 'x' or '-')
         local mode = ("%s%s%s%s%s%s"):format(typemap[stat.type], uperm.read and 'r' or '-', uperm.write and 'w' or '-', uperm.execute and (stat.setuser and 's' or 'x') or '-', all, all)
         local date = os.time() - stat.modified > 15552000000 and os.date("%b %e  %Y", stat.modified / 1000) or os.date("%b %e %H:%M", stat.modified / 1000)
-        print(("%s %u %s %s\t%" .. w .. "u %s %s"):format(mode, 0 --[[TODO]], args.g and "" or stat.owner, "", math.ceil(stat.size / (args.k and 1024 or 512)), date, name))
+        print(("%s %u %s %s\t%" .. w .. "u %s %s%s"):format(mode, 0 --[[TODO]], args.g and "" or stat.owner, "", math.ceil(stat.size / (args.k and 1024 or 512)), date, name, stat.type == "link" and " -> " .. stat.link or ""))
     elseif args.m then
         io.stdout:write(name .. ", ")
     elseif args.C then
@@ -41,30 +41,35 @@ end
 
 for _, path in ipairs(args) do
     if #args > 1 then print(path .. ":") end
-    local files = filesystem.list(path)
-    local stats = {}
-    if args.a then
-        files[#files+1] = "."
-        files[#files+1] = ".."
-    end
-    for _, f in ipairs(files) do
-        if args.A or not f:match "^%." then
-            local s = filesystem.stat(filesystem.combine(path, f))
-            if s then stats[#stats+1] = {name = f, stat = s} end
+    local stat, err = filesystem.stat(path, true)
+    local files
+    if stat then
+        if stat.type == "directory" then files = filesystem.list(path)
+        else path, files = filesystem.dirname(path), {filesystem.basename(path)} end
+        local stats = {}
+        if args.a then
+            files[#files+1] = "."
+            files[#files+1] = ".."
         end
-    end
-    local cmp
-    if args.r then cmp = function(a, b) return a >= b end else cmp = function(a, b) return a < b end end
-    if args.S then table.sort(stats, function(a, b) if a.stat.size == b.stat.size then return cmp(a.name, b.name) else return not cmp(a.stat.size, b.stat.size) end end)
-    elseif args.t then table.sort(stats, function(a, b) if a.stat.modified == b.stat.modified then return cmp(a.name, b.name) else return not cmp(a.stat.modified, b.stat.modified) end end)
-    elseif not args.f then table.sort(stats, function(a, b) return cmp(a.name, b.name) end) end
-    if args.l or args.s then
-        local size = 0
-        for _, v in ipairs(stats) do size = size + math.ceil(v.stat.size / (args.k and 1024 or 512)) end
-        print("total " .. size)
-    end
-    local width = 0
-    for _, v in ipairs(stats) do width = math.max(width, math.ceil(math.log(v.stat.size / (args.k and 1024 or 512), 10))) end
-    for _, v in ipairs(stats) do printInfo(v.name, v.stat, width) end
-    if args.m then print() end
+        for _, f in ipairs(files) do
+            if args.A or not f:match "^%." then
+                local s = filesystem.stat(filesystem.combine(path, f), true)
+                if s then stats[#stats+1] = {name = f, stat = s} end
+            end
+        end
+        local cmp
+        if args.r then cmp = function(a, b) return a >= b end else cmp = function(a, b) return a < b end end
+        if args.S then table.sort(stats, function(a, b) if a.stat.size == b.stat.size then return cmp(a.name, b.name) else return not cmp(a.stat.size, b.stat.size) end end)
+        elseif args.t then table.sort(stats, function(a, b) if a.stat.modified == b.stat.modified then return cmp(a.name, b.name) else return not cmp(a.stat.modified, b.stat.modified) end end)
+        elseif not args.f then table.sort(stats, function(a, b) return cmp(a.name, b.name) end) end
+        if args.l or args.s then
+            local size = 0
+            for _, v in ipairs(stats) do size = size + math.ceil(v.stat.size / (args.k and 1024 or 512)) end
+            print("total " .. size)
+        end
+        local width = 0
+        for _, v in ipairs(stats) do width = math.max(width, math.ceil(math.log(v.stat.size / (args.k and 1024 or 512), 10))) end
+        for _, v in ipairs(stats) do printInfo(v.name, v.stat, width) end
+        if args.m then print() end
+    else io.stderr:write("ls: cannot access '" .. path .. "': " .. err .. "\n") end
 end

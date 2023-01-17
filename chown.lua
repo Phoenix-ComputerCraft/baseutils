@@ -4,7 +4,7 @@ local args = assert(util.argparse({h = false, H = false, L = false, P = false, R
 if #args < 2 then error("usage: chown [-h] [-R [-H|-L|-P]] <owner> <file...>") end
 local function recurse(path, user)
     filesystem.chown(path, user)
-    if filesystem.stat(path).type == "directory" then
+    if filesystem.stat(path, true).type == "directory" then
         for _, v in ipairs(filesystem.list(path)) do
             recurse(filesystem.combine(path, v), user)
         end

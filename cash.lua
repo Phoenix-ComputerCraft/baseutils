@@ -25,8 +25,9 @@ SOFTWARE.
 local filesystem = require "system.filesystem"
 local process = require "system.process"
 local util = require "system.util"
+local serialization = require "system.serialization"
 
-local args = util.argparse({c = false, i = false, s = false}, ...)
+local args = assert(util.argparse({c = false, i = false, s = false}, ...))
 local commandPath, commandString
 if args.c then commandString = table.remove(args, 1) end
 if not args.s then commandPath = table.remove(args, 1) end
@@ -38,27 +39,28 @@ local running = true
 local shell_retval = 0
 local execCommand
 local pausedJob
+local env = process.getenv()
 
 if table.maxn == nil then table.maxn = function(t) local i = 1 while t[i] ~= nil do i = i + 1 end return i - 1 end end -- what
 
 local function trim(s) return string.match(s, '^()%s*$') and '' or string.match(s, '^%s*(.*%S)') end
 
-HOME = HOME or "/"
-SHELL = process.getname()
-PATH = PATH or "/bin:/sbin:/usr/bin"
-USER = process.getuser()
-EDITOR = "nano"
-OLDPWD = process.getcwd()
-PWD = OLDPWD
-SHLVL = SHLVL and SHLVL + 1 or 1
-TERM = TERM or "craftos"
-COLORTERM = COLORTERM or "16color"
+env.HOME = env.HOME or "/"
+env.SHELL = process.getname()
+env.PATH = env.PATH or "/bin:/sbin:/usr/bin"
+env.USER = process.getuser()
+env.EDITOR = env.EDITOR or "nano"
+env.OLDPWD = process.getcwd()
+env.PWD = env.OLDPWD
+env.SHLVL = env.SHLVL and env.SHLVL + 1 or 1
+env.TERM = env.TERM or "craftos"
+env.COLORTERM = env.COLORTERM or "16color"
 
 local vars = {
     PS1 = "\\s-\\v\\$ ",
     PS2 = "> ",
     IFS = "\n",
-    CASH = SHELL,
+    CASH = env.SHELL,
     CASH_VERSION = "0.4",
     RANDOM = function() return math.random(0, 32767) end,
     SECONDS = function() return math.floor((os.time() - start_time) / 1000) end,
@@ -68,8 +70,8 @@ local vars = {
     ["@"] = function() return table.concat(args, " ") end,
     ["#"] = #args,
     ["?"] = 0,
-    ["0"] = SHELL,
-    _ = SHELL,
+    ["0"] = env.SHELL,
+    _ = env.SHELL,
     ["$"] = process.getpid(),
 }
 
@@ -115,14 +117,14 @@ builtins = {
     builtin = function(name, ...) return builtins[name](...) end,
     cd = function(dir)
         dir = dir or "/"
-        if not dir:match "^/" then dir = filesystem.combine(PWD, dir) end
+        if not dir:match "^/" then dir = filesystem.combine(env.PWD, dir) end
         local ok, err = process.chdir(dir)
         if not ok then
             io.stderr:write("cash: cd: " .. dir .. ": " .. err .. "\n")
             return 1
         end
-        OLDPWD = PWD
-        PWD = dir
+        env.OLDPWD = env.PWD
+        env.PWD = dir
     end,
     command = function(...) no_funcs = true; shell.run(...); no_funcs = false; return vars["?"] end,
     complete = function() end, -- TODO
@@ -131,10 +133,10 @@ builtins = {
     exit = function(...) return shell.exit(...) end,
     export = function(...)
         local vars = {...}
-        if #vars == 0 or vars[1] == "-p" then for k,v in pairs(_ENV) do if type(v) == "string" or type(v) == "number" then print("export " .. k .. "=" .. v) end end else
+        if #vars == 0 or vars[1] == "-p" then for k,v in pairs(env) do if type(v) == "string" or type(v) == "number" then print("export " .. k .. "=" .. v) end end else
             for k,v in ipairs(vars) do
                 local kk, vv = string.match(v, "(.+)=(.+)")
-                if not (kk == nil or vv == nil) and (_ENV[kk] == nil or type(_ENV[kk]) == "string" or type(_ENV[kk]) == "number") then _ENV[kk] = vv end
+                if not (kk == nil or vv == nil) and (env[kk] == nil or type(env[kk]) == "string" or type(env[kk]) == "number") then env[kk] = vv end
             end
         end
     end,
@@ -160,20 +162,20 @@ builtins = {
     end,
     pushd = function(newdir)
         if newdir then
-            if not newdir:match "^/" then newdir = filesystem.combine(PWD, newdir) end
+            if not newdir:match "^/" then newdir = filesystem.combine(env.PWD, newdir) end
             local ok, err = process.chdir(newdir)
             if not ok then
                 io.stderr:write("cash: pushd: " .. newdir .. ": " .. err .. "\n")
                 return 1
             end
         end
-        table.insert(dirstack, PWD)
+        table.insert(dirstack, env.PWD)
         if newdir then
-            OLDPWD = PWD
-            PWD = newdir
+            env.OLDPWD = env.PWD
+            env.PWD = newdir
         end
-        write((PWD == "" and "/" or PWD) .. " ")
-        for i = #dirstack, 1, -1 do write((dirstack[i] == "" and "/" or dirstack[i]) .. " ") end
+        io.write((env.PWD == "" and "/" or env.PWD) .. " ")
+        for i = #dirstack, 1, -1 do io.write((dirstack[i] == "" and "/" or dirstack[i]) .. " ") end
         print()
     end,
     popd = function()
@@ -186,19 +188,19 @@ builtins = {
             io.stderr:write("cash: popd: " .. dirstack[#dirstack] .. ": " .. err .. "\n")
             return 1
         end
-        PWD = table.remove(dirstack, #dirstack)
-        write((PWD == "" and "/" or PWD) .. " ")
-        for i = #dirstack, 1, -1 do write((dirstack[i] == "" and "/" or dirstack[i]) .. " ") end
+        env.PWD = table.remove(dirstack, #dirstack)
+        io.write((env.PWD == "" and "/" or env.PWD) .. " ")
+        for i = #dirstack, 1, -1 do io.write((dirstack[i] == "" and "/" or dirstack[i]) .. " ") end
         print()
     end,
     dirs = function()
-        write((PWD == "" and "/" or PWD) .. " ")
-        for i = #dirstack, 1, -1 do write((dirstack[i] == "" and "/" or dirstack[i]) .. " ") end
+        io.write((env.PWD == "" and "/" or env.PWD) .. " ")
+        for i = #dirstack, 1, -1 do io.write((dirstack[i] == "" and "/" or dirstack[i]) .. " ") end
         print()
     end,
-    pwd = function() print(PWD) end,
+    pwd = function() print(env.PWD) end,
     read = function(var) -- TODO: expand
-        vars[var] = read()
+        vars[var] = io.read()
     end,
     set = function(...)
         local lvars = {...}
@@ -508,7 +510,7 @@ end
 function shell.resolveProgram(name)
     if builtins[name] ~= nil then return name end
     if aliases[name] ~= nil then name = aliases[name] end
-    for path in string.gmatch(PATH, "[^:]+") do
+    for path in string.gmatch(env.PATH, "[^:]+") do
         local p = filesystem.combine(path, name)
         local stat = filesystem.stat(p)
         if stat and stat.type == "file" and (stat.permissions[process.getuser()] or stat.worldPermissions).execute then return p
@@ -527,7 +529,7 @@ local function expandVar(var)
     if string.sub(var, 1, 1) ~= "$" then return nil end
     if string.sub(var, 2, 2) == "{" then
         local varname = string.sub(string.match(var, "%b{}"), 2, -2)
-        local retval = _ENV[varname] or vars[varname]
+        local retval = env[varname] or vars[varname]
         if type(retval) == "function" then return retval(), #varname + 2 else return retval or "", #varname + 2 end
     elseif string.sub(var, 2, 3) == "((" then
         local expr = string.gsub(string.sub(string.match(string.sub(var, 3), "%b()"), 2, -2), "%$", "")
@@ -544,8 +546,8 @@ local function expandVar(var)
         for c in string.gmatch(string.sub(var, 2), ".") do
             if c == " " then return "", #varname end
             varname = varname .. c
-            if _ENV[varname] or vars[varname] then
-                local retval = _ENV[varname] or vars[varname]
+            if env[varname] or vars[varname] then
+                local retval = env[varname] or vars[varname]
                 if type(retval) == "function" then return retval(), #varname else return retval or "", #varname end
             end
         end
@@ -590,7 +592,7 @@ local function tokenize(cmdline, noexpand)
     local function tostr(v)
         if type(v) == "boolean" then return v and "true" or "false"
         elseif v == nil then return "nil"
-        elseif type(v) == "table" then return util.syscall.serialize(v)
+        elseif type(v) == "table" then return serialization.lua.encode(v)
         elseif type(v) == "string" then return v
         else return tostring(v) end
     end
@@ -732,13 +734,13 @@ local function getPrompt()
         ["\\s"] = string.gsub(vars["0"]:match("[^/]+$"), ".lua", ""),
         ["\\t"] = "00:00", --textutils.formatTime(os.time(), true),
         ["\\T"] = "00:00", --textutils.formatTime(os.time(), false),
-        ["\\u"] = USER,
+        ["\\u"] = env.USER,
         ["\\v"] = vars.CASH_VERSION,
         ["\\V"] = vars.CASH_VERSION,
-        ["\\w"] = PWD,
-        ["\\W"] = PWD:match("[^/]+$") == "." and "/" or PWD:match("[^/]+$"),
+        ["\\w"] = env.PWD,
+        ["\\W"] = env.PWD:match("[^/]+$") == "." and "/" or env.PWD:match("[^/]+$"),
         ["\\%#"] = vars.LINENUM,
-        ["\\%$"] = USER == "root" and "#" or "$",
+        ["\\%$"] = env.USER == "root" and "#" or "$",
         ["\\([0-7][0-7][0-7])"] = function(n) return string.char(tonumber(n, 8)) end,
         ["\\\\"] = "\\",
         ["\\%[.+\\%]"] = ""
@@ -908,23 +910,23 @@ if filesystem.stat("/etc/cashrc") then
         file:close()
     end
 end
-if filesystem.stat(".cashrc") then
-    local file, err = io.open(filesystem.combine(HOME, ".cashrc"), "r")
+if filesystem.stat(filesystem.combine(env.HOME, ".cashrc")) then
+    local file, err = io.open(filesystem.combine(env.HOME, ".cashrc"), "r")
     if not file then io.stderr:write("Could not open .cashrc:", err)
     else
         for line in file:lines() do shell.run(line) end
         file:close()
     end
 end
-if filesystem.stat(filesystem.combine(HOME, ".cash_history")) then
-    local file, err = io.open(filesystem.combine(HOME, ".cash_history"), "r")
+if filesystem.stat(filesystem.combine(env.HOME, ".cash_history")) then
+    local file, err = io.open(filesystem.combine(env.HOME, ".cash_history"), "r")
     if not file then io.stderr:write("Could not open .cashhistory:", err)
     else
         for line in file:lines() do table.insert(history, line) end
         file:close()
     end
-    historyfile = filesystem.open(filesystem.combine(HOME, ".cash_history"), "a")
-else historyfile = filesystem.open(filesystem.combine(HOME, ".cash_history"), "w") end
+    historyfile = filesystem.open(filesystem.combine(env.HOME, ".cash_history"), "a")
+else historyfile = filesystem.open(filesystem.combine(env.HOME, ".cash_history"), "w") end
 
 if commandString then
     vars["0"] = commandPath
@@ -1082,7 +1084,7 @@ local function readCommand()
                         end
                     end
                 else
-                    local res = fs.complete(tokens[table.maxn(tokens)], PWD, true, true)
+                    local res = fs.complete(tokens[table.maxn(tokens)], env.PWD, true, true)
                     if res and #res > 0 then
                         local longest = res[1]
                         local function getLongest(a, b)

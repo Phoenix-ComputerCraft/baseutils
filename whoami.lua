@@ -1,2 +1,3 @@
 local process = require "system.process"
-print((process.getuser()))
+local u = process.getuser()
+print(u)
