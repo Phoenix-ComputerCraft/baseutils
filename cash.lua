@@ -1,7 +1,7 @@
 --[[
 MIT License
 
-Copyright (c) 2019-2021 JackMacWindows
+Copyright (c) 2019-2023 JackMacWindows
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,8 +24,9 @@ SOFTWARE.
 
 local filesystem = require "system.filesystem"
 local process = require "system.process"
-local util = require "system.util"
 local serialization = require "system.serialization"
+local terminal = require "system.terminal"
+local util = require "system.util"
 
 local args = assert(util.argparse({c = false, i = false, s = false}, ...))
 local commandPath, commandString
@@ -61,7 +62,7 @@ local vars = {
     PS2 = "> ",
     IFS = "\n",
     CASH = env.SHELL,
-    CASH_VERSION = "0.4",
+    CASH_VERSION = "0.4.1",
     RANDOM = function() return math.random(0, 32767) end,
     SECONDS = function() return math.floor((os.time() - start_time) / 1000) end,
     HOSTNAME = "localhost", -- TODO
@@ -922,7 +923,7 @@ if filesystem.stat(filesystem.combine(env.HOME, ".cash_history")) then
     local file, err = io.open(filesystem.combine(env.HOME, ".cash_history"), "r")
     if not file then io.stderr:write("Could not open .cashhistory:", err)
     else
-        for line in file:lines() do table.insert(history, line) end
+        for line in file:lines() do table.insert(history, 1, line) end
         file:close()
     end
     historyfile = filesystem.open(filesystem.combine(env.HOME, ".cash_history"), "a")
@@ -1224,10 +1225,32 @@ while running do
         local prompt = getPrompt()
         io.stdout:write(prompt)
     end
-    local str = io.stdin:read("*l")
+    local str = terminal.readline2(history, function(partial)
+        if partial:find " " then
+            local path = partial:match "%S*$"
+            local pathopts = filesystem.find(path .. "*")
+            for i, v in ipairs(pathopts) do
+                if filesystem.isDir(v) then pathopts[i] = v:gsub("^" .. path:gsub("[%^%$%(%)%[%]%%%.%*%+%-%?]", "%%%1"), "") .. "/"
+                else pathopts[i] = v:gsub("^" .. path:gsub("[%^%$%(%)%[%]%%%.%*%+%-%?]", "%%%1"), "") .. " " end
+            end
+            table.sort(pathopts)
+            return pathopts
+        else
+            local cmdopts = {}
+            for k in pairs(builtins) do if k:sub(1, #partial) == partial then cmdopts[#cmdopts+1] = k:sub(#partial + 1) .. " " end end
+            for k in pairs(functions) do if k:sub(1, #partial) == partial then cmdopts[#cmdopts+1] = k:sub(#partial + 1) .. " " end end
+            for path in env.PATH:gmatch "[^:]+" do
+                path = filesystem.combine(path, partial)
+                local pathopts = filesystem.find(path .. "*")
+                for _, v in ipairs(pathopts) do cmdopts[#cmdopts+1] = v:gsub("^" .. path:gsub("[%^%$%(%)%[%]%%%.%*%+%-%?]", "%%%1"), ""):gsub("%.lua$", "") .. " " end
+            end
+            table.sort(cmdopts)
+            return cmdopts
+        end
+    end)
     if args.i then
-        if historyfile and str ~= "" and str ~= history[#history] then
-            table.insert(history, str)
+        if historyfile and str ~= "" and str ~= history[1] then
+            table.insert(history, 1, str)
             historyfile.writeLine(str)
             historyfile.flush()
         end

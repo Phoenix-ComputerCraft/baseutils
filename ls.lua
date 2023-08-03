@@ -71,5 +71,5 @@ for _, path in ipairs(args) do
         for _, v in ipairs(stats) do width = math.max(width, math.ceil(math.log(v.stat.size / (args.k and 1024 or 512), 10))) end
         for _, v in ipairs(stats) do printInfo(v.name, v.stat, width) end
         if args.m then print() end
-    else io.stderr:write("ls: cannot access '" .. path .. "': " .. err .. "\n") end
+    else io.stderr:write("ls: cannot access '" .. path .. "': " .. (err or "") .. "\n") end
 end

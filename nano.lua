@@ -36,6 +36,7 @@ local isPrompt = false
 local inputBuffer, inputCursor = "", 1
 local inputCallback
 local running = true
+local cutBuffer = {}
 
 local function fittosize(str, w, trunc)
     if #str < w then return (trunc and "" or (' '):rep(math.ceil((w-#str)/2))) .. str .. (' '):rep(math.floor((w-#str)/(trunc and 1 or 2)))
@@ -248,7 +249,17 @@ mainShortcuts = {
         {key = keys.g, ctrl = true, description = "Get Help"},
         {key = keys.o, ctrl = true, description = "Write Out", action = save},
         {key = keys.w, ctrl = true, description = "Where Is"},
-        {key = keys.k, ctrl = true, description = "Cut Text"},
+        {key = keys.k, ctrl = true, description = "Cut Text", action = function()
+            if cursorY == #lines then showMessage("[ Nothing was cut ]")
+            else
+                cutBuffer[#cutBuffer+1] = table.remove(lines, cursorY)
+                cursorX = math.min(cursorX, #lines[cursorY] + 1)
+                if not modified then
+                    modified = true
+                    redrawAll()
+                else redrawText() end
+            end
+        end},
         {key = keys.j, ctrl = true, description = "Justify"},
         {key = keys.c, ctrl = true, description = "Cur Pos", action = function()
             local c = 0
@@ -290,7 +301,17 @@ mainShortcuts = {
         {key = keys.x, ctrl = true, description = "Exit"},
         {key = keys.r, ctrl = true, description = "Read File"},
         {key = keys.backslash, ctrl = true, description = "Replace"},
-        {key = keys.u, ctrl = true, description = "Paste Text"},
+        {key = keys.u, ctrl = true, description = "Paste Text", action = function()
+            if #cutBuffer == 0 then showMessage("[ Nothing was pasted ]")
+            else
+                for i = #cutBuffer, 1, -1 do table.insert(lines, cursorY, cutBuffer[i]) end
+                cutBuffer = {}
+                if not modified then
+                    modified = true
+                    redrawAll()
+                else redrawText() end
+            end
+        end},
         {key = keys.t, ctrl = true, description = "To Spell"},
         {key = keys.minus, shift = true, ctrl = true, description = "Go To Line", action = function()
             showInput("Enter line number, column number: ", {

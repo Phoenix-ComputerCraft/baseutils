@@ -1,5 +1,6 @@
-local util = require "system.util"
 local pretty = require "system.pretty"
+local terminal = require "system.terminal"
+local util = require "system.util"
 
 local args = assert(util.argparse({h = false, help = false, e = true, l = true, i = false, v = false}, ...))
 for i, v in ipairs(args) do if v == "--" then table.remove(args, i) break end end
@@ -32,16 +33,20 @@ if args[1] then
     if not args.i then return 0 end
 end
 
+exit = setmetatable({}, {__tostring = function() return "Press Ctrl+D or Ctrl+C to exit" end})
+quit = exit
+
 print(_VERSION, "Copyright (C) 2021 JackMacWindows")
+local history = {}
 while true do
     local buf = ""
     local fn, err
     repeat
         if buf == "" then io.stdout:write("> ")
         else io.stdout:write(">> ") end
-        local inp = io.stdin:read("*L")
+        local inp = terminal.readline2(history)
         if not inp then print() return 0 end
-        buf = buf .. inp
+        buf = buf .. inp .. "\n"
         fn, err = load("return " .. buf, "=stdin")
         if not fn then fn, err = load(buf, "=stdin") end
     until fn or not err:match("<eof>")
@@ -50,4 +55,5 @@ while true do
         if res[1] then for i = 2, res.n do pretty.print(pretty.pretty(res[i], {function_source = true, function_args = true})) end
         else io.stderr:write(res[2] .. "\n") end
     else io.stderr:write(err .. "\n") end
+    table.insert(history, 1, buf:sub(1, -2))
 end

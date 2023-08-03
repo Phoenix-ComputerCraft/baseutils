@@ -4,34 +4,25 @@ local process = require "system.process"
 local terminal = require "system.terminal"
 local util = require "system.util"
 
-local args = {...}
-local filename = nil
-local parseargs = true
-local foldLines = true
-if not terminal.istty() then filename = "-" end
-for i,s in ipairs(args) do
-    if string.sub(s, 1, 2) == "--" and parseargs then
-        if s == "--version" then print("less for Phoenix v1.0"); return
-        elseif s == "--help" then print("..."); return -- TODO
-        elseif s == "--" then parseargs = false
-        elseif s == "--chop-long-lines" then foldLines = false
-        end
-    elseif string.sub(s, 1, 1) == '-' and parseargs then
-        for a in string.gmatch(string.sub(s, 2), "[a-zA-Z0-9~]") do
-            if a == 'S' then foldLines = false
-            elseif a == '' then
-            end
-        end
-    elseif filename == nil then filename = s end
-end
+local args = assert(util.argparse({
+    ["chop-long-lines"] = false,
+    S = "@chop-long-lines",
+    ["prompt"] = true,
+    P = "@prompt",
+    help = false,
+    version = false
+}, ...))
+local filename = args[1]
+local foldLines = not args["chop-long-lines"]
+local message = args.prompt
+if filename == nil and not terminal.istty() then filename = "-" end
 if filename == nil then error("Missing filename (\"less --help\" for help)") end
 
 local stdin_buf
 local term = assert(terminal.openterm())
-local lines = {}
+local lines, fg, bg = {}, {}, {}
 local pos, hpos = 1, 1
 local w, h = term.getSize()
-local message = nil
 h=h-1
 
 local function readFile()
@@ -55,10 +46,43 @@ local function readFile()
         end
         file.close()
     end
-    if foldLines and hpos == 1 then for i = 1, #lines do if #lines[i] > w then
-        table.insert(lines, i+1, string.sub(lines[i], w) or "")
-        lines[i] = string.sub(lines[i], 1, w - 1)
-    end end end
+    -- mini VT-100 color thing
+    for i, v in ipairs(lines) do
+        local text, fgs, bgs = "", "", ""
+        local lp = 1
+        local f, b = "0", "f"
+        for epos, n, spos in v:gmatch "()%f[\x1b]\x1b%[(%d+)m()" do
+            text = text .. v:sub(lp, epos - 1)
+            fgs = fgs .. f:rep(epos - lp)
+            bgs = bgs .. b:rep(epos - lp)
+            n = tonumber(n)
+            if n == 0 then f, b = "0", "f"
+            elseif n >= 30 and n <= 37 then f = ("%x"):format(15 - (n - 30))
+            elseif n == 39 then f = '0'
+            elseif n >= 40 and n <= 47 then b = ("%x"):format(15 - (n - 40))
+            elseif n == 49 then b = 'f'
+            elseif n >= 90 and n <= 97 then f = ("%x"):format(15 - (n - 90) - 8)
+            elseif n >= 100 and n <= 107 then b = ("%x"):format(15 - (n - 100) - 8) end
+            lp = spos
+        end
+        text = text .. v:sub(lp)
+        fgs = fgs .. f:rep(#v - lp + 1)
+        bgs = bgs .. b:rep(#v - lp + 1)
+        lines[i], fg[i], bg[i] = text, fgs, bgs
+    end
+    if foldLines and hpos == 1 then
+        local i = 1
+        while i <= #lines do
+            while #lines[i] > w do
+                local p = w - (lines[i]:sub(1, w):reverse():find(" ") or 1) + 1
+                table.insert(lines, i+1, string.sub(lines[i], p + 1) or "")
+                table.insert(fg, i+1, string.sub(fg[i], p + 1) or "")
+                table.insert(bg, i+1, string.sub(bg[i], p + 1) or "")
+                lines[i], fg[i], bg[i] = lines[i]:sub(1, p), fg[i]:sub(1, p), bg[i]:sub(1, p)
+            end
+            i = i + 1
+        end
+    end
 end
 
 local function redrawScreen()
@@ -66,7 +90,7 @@ local function redrawScreen()
     term.setCursorPos(1, 1)
     term.setCursorBlink(false)
     for i = pos, pos + h - 1 do
-        if lines[i] ~= nil then term.write(string.sub(lines[i], hpos)) end
+        if lines[i] ~= nil then term.blit(lines[i]:sub(hpos), fg[i]:sub(hpos), bg[i]:sub(hpos)) end
         term.setCursorPos(1, i - pos + 2)
     end
     term.setCursorPos(1, h+1)
