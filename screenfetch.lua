@@ -45,7 +45,7 @@ addLine("Lua", _VERSION)
 addLine("CC Version", util.syscall.cchost():match("ComputerCraft [%d%.]+"))
 addLine("Resolution", table.concat({terminal.termsize()}, "x"))
 local stat = filesystem.stat("/")
-addLine("Disk Space", space(stat.freeSpace) .. " / " .. space(stat.capacity):sub(1, -1))
+addLine("Disk Space", space(stat.freeSpace) .. " / " .. space(stat.capacity))
 if collectgarbage then addLine("Memory", space(collectgarbage("count") * 1024)) end
 lines[#lines+1] = ""
 lines[#lines+1] = "\x1b[40m   \x1b[41m   \x1b[42m   \x1b[43m   \x1b[44m   \x1b[45m   \x1b[46m   \x1b[47m   \x1b[0m"
