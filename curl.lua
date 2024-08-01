@@ -88,7 +88,7 @@ local args = assert(util.argparse({
     i = false, include = "@i",
     J = false, ["remote-header-name"] = "@J",
     L = false, location = "@L",
-    o = false, output = "@o",
+    o = true, output = "@o",
     O = false, ["remote-name"] = "@O",
     r = true, range = "@r",
     R = false, run = "@R",

@@ -12,22 +12,25 @@ else
         else io.stderr:write("df: could not stat " .. v .. ": " .. (err or "") .. "\n") end
     end
 end
+local function inf(n) if n == math.huge then return "inf" elseif n ~= n then return "nan" else return tostring(n) end end
 if args.P then
     local bs = args.k and 1024 or 512
     print("Filesystem " .. bs .. "-blocks Used Available Capacity Mounted on")
     for _, v in ipairs(info) do
-        print(("%s %d %d %d %d%% %s"):format(
+        print(("%s %s %s %s %s%% %s"):format(
             v.source,
-            math.ceil(v.stat.capacity / bs),
-            math.ceil((v.stat.capacity - v.stat.freeSpace) / bs),
-            math.ceil(v.stat.freeSpace / bs),
-            math.floor((v.stat.capacity - v.stat.freeSpace) / v.stat.capacity * 100),
+            inf(math.ceil(v.stat.capacity / bs)),
+            inf(math.ceil((v.stat.capacity - v.stat.freeSpace) / bs)),
+            inf(math.ceil(v.stat.freeSpace / bs)),
+            inf(math.floor((v.stat.capacity - v.stat.freeSpace) / v.stat.capacity * 100)),
             v.path
         ))
     end
 elseif args.h then
     local function sz(n)
-        if n >= 1000000000000 then return ("%.3gT"):format(n / 1000000000000)
+        if n == math.huge then return "inf"
+        elseif n ~= n then return "nan"
+        elseif n >= 1000000000000 then return ("%.3gT"):format(n / 1000000000000)
         elseif n >= 1000000000 then return ("%.3gG"):format(n / 1000000000)
         elseif n >= 1000000 then return ("%.3gM"):format(n / 1000000)
         elseif n >= 1000 then return ("%.3gK"):format(n / 1000)
@@ -35,12 +38,12 @@ elseif args.h then
     end
     print("Filesystem\tSize\tUsed\tAvail\tUse%\tMounted on")
     for _, v in ipairs(info) do
-        print(("%s\t%s\t%s\t%s\t%3d%%\t%s"):format(
+        print(("%s\t%s\t%s\t%s\t%s%%\t%s"):format(
             v.source .. (#v.source < 8 and "\t" or ""),
             sz(v.stat.capacity),
             sz(v.stat.capacity - v.stat.freeSpace),
             sz(v.stat.freeSpace),
-            math.floor((v.stat.capacity - v.stat.freeSpace) / v.stat.capacity * 100),
+            inf(math.floor((v.stat.capacity - v.stat.freeSpace) / v.stat.capacity * 100)),
             v.path
         ))
     end
@@ -48,12 +51,12 @@ else
     local bs = args.k and 1024 or 512
     print("Filesystem\tSize\tUsed\tAvail\tUse%\tMounted on")
     for _, v in ipairs(info) do
-        print(("%s\t%d\t%d\t%d\t%d%%\t%s"):format(
+        print(("%s\t%s\t%s\t%s\t%s%%\t%s"):format(
             v.source .. (#v.source < 8 and "\t" or ""),
-            math.ceil(v.stat.capacity / bs),
-            math.ceil((v.stat.capacity - v.stat.freeSpace) / bs),
-            math.ceil(v.stat.freeSpace / bs),
-            math.floor((v.stat.capacity - v.stat.freeSpace) / v.stat.capacity * 100),
+            inf(math.ceil(v.stat.capacity / bs)),
+            inf(math.ceil((v.stat.capacity - v.stat.freeSpace) / bs)),
+            inf(math.ceil(v.stat.freeSpace / bs)),
+            inf(math.floor((v.stat.capacity - v.stat.freeSpace) / v.stat.capacity * 100)),
             v.path
         ))
     end

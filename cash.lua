@@ -808,7 +808,8 @@ function execv(tokens)
             return -- the program will never reach this
         end
         local pid = process.fork(function()
-            if tokens.stdin then util.syscall.stdin(tokens.stdin) end
+            if tokens.stdin then util.syscall.stdin(tokens.stdin)
+            elseif tokens.async then util.syscall.stdin(nil) end
             if tokens.stdout then util.syscall.stdout(tokens.stdout) end
             if tokens.stderr then util.syscall.stderr(tokens.stderr) end
             process.exec(path, table.unpack(tokens))
