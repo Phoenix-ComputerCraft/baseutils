@@ -1,7 +1,7 @@
 local filesystem = require "system.filesystem"
 local util = require "system.util"
 
-local args = util.argparse({A = false, C = false, F = false, H = false, L = false, R = false, S = false, a = false, c = false, d = false, f = false, g = false, i = false, k = false, l = false, m = false, n = false, o = false, p = false, q = false, r = false, s = false, t = false, u = false, x = false, ["1"] = false}, ...)
+local args = assert(util.argparse({A = false, C = false, F = false, H = false, L = false, R = false, S = false, a = false, c = false, d = false, f = false, g = false, h = false, i = false, k = false, l = false, m = false, n = false, o = false, p = false, q = false, r = false, s = false, t = false, u = false, x = false, ["1"] = false}, ...))
 if not args[1] then args[1] = "." end
 if args.f then args.a, args.r, args.S, args.t = true, false, false, false end
 if args.a then args.A = true end
@@ -27,7 +27,15 @@ local function printInfo(name, stat, w)
         local all = (aperm.read and 'r' or '-') .. (aperm.write and 'w' or '-') .. (aperm.execute and 'x' or '-')
         local mode = ("%s%s%s%s%s%s"):format(typemap[stat.type], uperm.read and 'r' or '-', uperm.write and 'w' or '-', uperm.execute and (stat.setuser and 's' or 'x') or '-', all, all)
         local date = os.time() - stat.modified > 15552000000 and os.date("%b %e  %Y", stat.modified / 1000) or os.date("%b %e %H:%M", stat.modified / 1000)
-        print(("%s %u %s %s\t%" .. w .. "u %s %s%s"):format(mode, 0 --[[TODO]], args.g and "" or stat.owner, "", math.ceil(stat.size / (args.k and 1024 or 512)), date, name, stat.type == "link" and " -> " .. stat.link or ""))
+        if args.h then
+            local size, sizemod
+            if stat.size >= 1000000000 then size, sizemod = stat.size / 1000000000, "G"
+            elseif stat.size >= 1000000 then size, sizemod = stat.size / 1000000, "M"
+            elseif stat.size >= 1000 then size, sizemod = stat.size / 1000, "k"
+            else size = stat.size end
+            if sizemod then print(("%s %u %s %s\t%4.3g%s %s %s%s"):format(mode, 0 --[[TODO]], args.g and "" or stat.owner, "", size, sizemod, date, name, stat.type == "link" and " -> " .. stat.link or ""))
+            else print(("%s %u %s %s\t%5.3g %s %s%s"):format(mode, 0 --[[TODO]], args.g and "" or stat.owner, "", size, date, name, stat.type == "link" and " -> " .. stat.link or "")) end
+        else print(("%s %u %s %s\t%" .. w .. "u %s %s%s"):format(mode, 0 --[[TODO]], args.g and "" or stat.owner, "", math.ceil(stat.size / (args.k and 1024 or 512)), date, name, stat.type == "link" and " -> " .. stat.link or "")) end
     elseif args.m then
         io.stdout:write(name .. ", ")
     elseif args.C then

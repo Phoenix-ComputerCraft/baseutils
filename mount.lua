@@ -75,7 +75,7 @@ local options = (fstab[args[1]] and fstab[args[1]].options) or {
 }
 if args.o then
     for arg in args.o:gmatch "[^,]+" do
-        local k, v = arg:match "([^=]+)=?(.*)"
+        local k, v = arg:match "([^=]+)=(.*)"
         if not k then k, v = arg, true end
         options[k] = v
     end
